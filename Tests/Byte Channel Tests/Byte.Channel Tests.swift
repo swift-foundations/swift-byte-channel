@@ -9,15 +9,16 @@ struct ByteChannelTests {
 }
 
 extension ByteChannelTests.Unit {
-    @Test("Chunk is move-only, borrows synchronously, and splits into owned pieces")
-    func `chunk ownership and split are source-visible`() async {
-        // Static source test: `consume` prevents a second use and `withSpan`
-        // cannot retain its synchronous borrow beyond this closure.
-        let chunk = try! Byte.Chunk(capacity: 3) { output in
-            output.append(0x01)
-            output.append(0x02)
-            output.append(0x03)
-        }
+    @Test("Chunk input is move-only and its output ledger determines the finished chunk")
+    func `chunk input ownership and ledger are source-visible`() async {
+        // Static source test: `consume` prevents a second use of `input`; the
+        // finished count comes from OutputSpan's committed frontier, never an
+        // independently supplied count.
+        var input = Byte.Chunk.Input(capacity: 3)
+        input.outputSpan.append(0x01)
+        input.outputSpan.append(0x02)
+        input.outputSpan.append(0x03)
+        let chunk = consume input.finish()
         let pieces = consume chunk.split(maximum: 2)
         let prefixCount = pieces.prefix.count
         let remainderCount = pieces.remainder.count
@@ -29,6 +30,15 @@ extension ByteChannelTests.Unit {
     func `reader preserves chunk boundaries`() async {
         // Source contract: `receive()` vends Byte.Chunk?, while the bounded
         // `receive(maximum:)` path retains one owned remainder only.
+    }
+
+    @Test("Chunk exposes only lifetime views")
+    func `chunk lifetime and negative contracts are source-visible`() async {
+        // Static source contract:
+        // - `Byte.Chunk.span` is a borrowing lifetime-bound `Swift.Span<Byte>`.
+        // - no public `withSpan` or other `with*` chunk API exists.
+        // - no raw pointer, `Span.Raw`, storage, async view, or SPI escapes.
+        // - neither `span` nor `outputSpan` crosses `await`.
     }
 }
 
