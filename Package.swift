@@ -16,7 +16,7 @@ let package = Package(
         .library(name: "Byte Channel", targets: ["Byte Channel"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/swift-primitives/swift-async-primitives.git", branch: "main"),
+        .package(url: "https://github.com/swift-primitives/swift-async-primitives.git", revision: "e7b49a33fc20cb155daa7879dcae78f87fe3bd3c"),
         .package(url: "https://github.com/swift-primitives/swift-buffer-linear-primitives.git", branch: "feature/issue-8-owned-prefix-split"),
         .package(url: "https://github.com/swift-primitives/swift-buffer-primitives.git", branch: "main"),
         .package(url: "https://github.com/swift-primitives/swift-byte-primitives.git", branch: "main"),
@@ -36,6 +36,7 @@ let package = Package(
             dependencies: [
                 "Byte Chunk",
                 .product(name: "Async Channel Primitives", package: "swift-async-primitives"),
+                .product(name: "Async Semaphore Primitives", package: "swift-async-primitives"),
                 .product(name: "Buffer Protocol Primitives", package: "swift-buffer-primitives"),
                 .product(name: "Byte Primitives", package: "swift-byte-primitives"),
                 .product(name: "Index Primitives", package: "swift-index-primitives"),
