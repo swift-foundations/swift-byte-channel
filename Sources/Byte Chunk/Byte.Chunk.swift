@@ -6,7 +6,7 @@ extension Byte {
     /// An owned, contiguous, initialized sequence of bytes.
     ///
     /// A chunk is move-only. Its backing allocation is private and is exposed
-    /// only through a synchronous, nonescaping span borrow.
+    /// only through a lifetime-bound span borrow.
     @frozen
     public struct Chunk: ~Copyable, Sendable {
         @usableFromInline
@@ -33,12 +33,16 @@ extension Byte.Chunk {
     @inlinable
     public var count: Index<Byte>.Count { payload.count }
 
-    /// Borrows the initialized payload for the duration of `body`.
+    /// A lifetime-bound view of the initialized bytes.
+    ///
+    /// The view cannot outlive this chunk and never exposes its backing
+    /// storage. Its extent is the payload's initialized prefix.
     @inlinable
-    public borrowing func withSpan<Result: ~Copyable>(
-        _ body: (borrowing Swift.Span<Byte>) -> Result
-    ) -> Result {
-        body(payload.span)
+    public var span: Swift.Span<Byte> {
+        @_lifetime(borrow self)
+        borrowing get {
+            payload.span
+        }
     }
 
     /// Consumes this chunk into an owned prefix and owned remainder.
