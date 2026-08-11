@@ -43,12 +43,21 @@ extension ByteChannelTests.Unit {
 }
 
 extension ByteChannelTests.EdgeCase {
-    @Test("Byte capacity accounts for empty chunks, oversized chunks, and zero-capacity rendezvous")
+    @Test("Pair endpoints expose the exact canonical byte capacity")
     func `byte budget edge conditions are source-visible`() async {
         let zero = Buffer.Capacity<Byte>(.zero)
         let one = Buffer.Capacity<Byte>(.one)
-        _ = Byte.Channel<Never>.pair(capacity: zero)
-        _ = Byte.Channel<Never>.pair(capacity: one)
+        let zeroPair = Byte.Channel<Never>.pair(capacity: zero)
+        let onePair = Byte.Channel<Never>.pair(capacity: one)
+        #expect(zeroPair.0.capacity == zero)
+        #expect(zeroPair.1.capacity == zero)
+        #expect(onePair.0.capacity == one)
+        #expect(onePair.1.capacity == one)
+
+        // Static source law: Channel.capacity borrows the Writer gate's
+        // Buffer.Capacity<Byte>; the gate initializes its mutable availability
+        // from that same value. Writer admission and reader segmentation do not
+        // own, mutate, retag, or shadow the fixed byte bound.
         // Empty chunks charge one admission unit; an oversize send is rejected
         // by the gate rather than bypassing the declared byte capacity.
     }

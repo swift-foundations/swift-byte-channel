@@ -16,11 +16,16 @@ extension Byte {
         /// The outbound half of one endpoint.
         public let writer: Writer
 
+        /// The fixed byte bound shared by this endpoint's writer and peer reader.
+        public var capacity: Buffer.Capacity<Byte> {
+            borrowing get { writer.gate.capacity }
+        }
+
         /// Creates connected endpoints with a byte capacity for each direction.
         public static func pair(capacity: Buffer.Capacity<Byte>) -> (Self, Self) {
             var duplexes = Async.Channel<Byte.Chunk>.Duplex<Failure>.pair(capacity: .one)
-            let leftGate = Gate(capacity: capacity.count)
-            let rightGate = Gate(capacity: capacity.count)
+            let leftGate = Gate(capacity: capacity)
+            let rightGate = Gate(capacity: capacity)
 
             return (
                 .init(
