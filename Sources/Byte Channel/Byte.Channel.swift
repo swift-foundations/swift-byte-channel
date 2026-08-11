@@ -6,48 +6,59 @@ public import Index_Primitives
 
 extension Byte {
     /// A typed, bidirectional channel of owned byte chunks.
-    ///
-    /// The transport is `Async.Channel<Byte.Chunk>.Duplex`. This layer owns
-    /// only byte-budget admission; it never coalesces chunks or owns a queue.
     public struct Channel<Failure: Swift.Error & Sendable>: ~Copyable, Sendable {
-        /// The inbound half of one endpoint.
         public var reader: Reader
-
-        /// The outbound half of one endpoint.
         public let writer: Writer
+        let bound: Buffer.Capacity<Byte>
 
-        /// The fixed byte bound shared by this endpoint's writer and peer reader.
         public var capacity: Buffer.Capacity<Byte> {
-            borrowing get { writer.gate.capacity }
+            borrowing get { bound }
         }
 
         /// Creates connected endpoints with a byte capacity for each direction.
         public static func pair(capacity: Buffer.Capacity<Byte>) -> (Self, Self) {
-            var duplexes = Async.Channel<Byte.Chunk>.Duplex<Failure>.pair(capacity: .one)
+            if capacity.count == .zero {
+                var duplexes = Async.Channel<Byte.Chunk>.Typed<Failure>.Rendezvous.Duplex.pair()
+                return (
+                    .init(
+                        reader: .init(.rendezvous(consume duplexes.0.inbound)),
+                        writer: .init(.rendezvous(duplexes.0.outbound)),
+                        capacity: capacity
+                    ),
+                    .init(
+                        reader: .init(.rendezvous(consume duplexes.1.inbound)),
+                        writer: .init(.rendezvous(duplexes.1.outbound)),
+                        capacity: capacity
+                    )
+                )
+            }
+
+            var leftToRight = Async.Channel<Accepted>.Typed<Failure>.Bounded(capacity: .one)
+            var rightToLeft = Async.Channel<Accepted>.Typed<Failure>.Bounded(capacity: .one)
             let leftGate = Gate(capacity: capacity)
             let rightGate = Gate(capacity: capacity)
-
             return (
                 .init(
-                    reader: .init(raw: consume duplexes.0.inbound, gate: rightGate),
-                    writer: .init(raw: duplexes.0.outbound, gate: leftGate)
+                    reader: .init(.bounded(consume rightToLeft.receiver, rightGate)),
+                    writer: .init(.bounded(leftToRight.sender, leftGate)),
+                    capacity: capacity
                 ),
                 .init(
-                    reader: .init(raw: consume duplexes.1.inbound, gate: leftGate),
-                    writer: .init(raw: duplexes.1.outbound, gate: rightGate)
+                    reader: .init(.bounded(consume leftToRight.receiver, leftGate)),
+                    writer: .init(.bounded(rightToLeft.sender, rightGate)),
+                    capacity: capacity
                 )
             )
         }
 
-        @usableFromInline
-        init(reader: consuming Reader, writer: Writer) {
+        init(reader: consuming Reader, writer: Writer, capacity: Buffer.Capacity<Byte>) {
             self.reader = consume reader
             self.writer = writer
+            self.bound = capacity
         }
     }
 }
 
 extension Byte.Channel {
-    /// Typed terminal and backpressure outcomes inherited from the duplex.
     public typealias Error = Async.Channel<Byte.Chunk>.Typed<Failure>.Error
 }

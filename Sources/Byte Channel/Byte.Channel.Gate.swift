@@ -1,50 +1,101 @@
+import Async_Channel_Primitives
+import Async_Semaphore_Primitives
 import Byte_Chunk
 import Buffer_Protocol_Primitives
 import Index_Primitives
+import Synchronization
 
 extension Byte.Channel {
-    /// Byte-budget accounting shared by the writer and its peer reader.
-    ///
-    /// The gate accounts in bytes while the underlying duplex holds at most one
-    /// chunk element. Empty chunks cost one admission unit, so they cannot pass
-    /// an exhausted byte bound. A zero byte capacity is a rendezvous: only a
-    /// reader that has announced demand can admit a writer.
-    actor Gate {
-        nonisolated let capacity: Buffer.Capacity<Byte>
-        var available: Index<Byte>.Count
-        var readerDemand = false
+    /// Positive-capacity byte admission and terminal linearization.
+    final class Gate: Sendable {
+        enum Terminal: Sendable {
+            case finished
+            case failed(Failure)
+        }
+
+        struct State: Sendable {
+            var terminal: Terminal?
+        }
+
+        let capacity: Buffer.Capacity<Byte>
+        let turn: Async.Semaphore
+        let bytes: Async.Semaphore
+        let state: Mutex<State>
 
         init(capacity: Buffer.Capacity<Byte>) {
+            precondition(capacity.count != .zero)
             self.capacity = capacity
-            self.available = capacity.count
+            self.turn = Async.Semaphore(capacity: 1)
+            self.bytes = Async.Semaphore(capacity: Int(capacity.count))
+            self.state = Mutex(State(terminal: nil))
         }
 
-        func admit(_ chunk: borrowing Byte.Chunk) async {
-            let charge = chunk.count == .zero ? Index<Byte>.Count.one : chunk.count
-            precondition(charge <= capacity.count || capacity.count == .zero, "chunk exceeds channel byte capacity")
-
-            while charge > available && !(capacity.count == .zero && readerDemand) {
-                await Task.yield()
+        func reserve(_ count: Index<Byte>.Count) async throws(Error) -> Reservation {
+            precondition(count <= capacity.count, "chunk exceeds channel byte capacity")
+            do {
+                try await turn.wait()
+            } catch {
+                throw terminalError(fallback: error)
             }
 
-            if capacity.count == .zero {
-                readerDemand = false
-            } else {
-                available = available.subtract.saturating(charge)
+            var acquired = 0
+            do {
+                while acquired < Int(count) {
+                    try await bytes.wait()
+                    acquired += 1
+                }
+            } catch {
+                while acquired > 0 {
+                    bytes.signal()
+                    acquired -= 1
+                }
+                turn.signal()
+                throw terminalError(fallback: error)
+            }
+
+            let terminal = state.withLock { $0.terminal }
+            turn.signal()
+            if let terminal {
+                while acquired > 0 {
+                    bytes.signal()
+                    acquired -= 1
+                }
+                throw Self.error(terminal)
+            }
+            return Reservation(semaphore: bytes, count: Int(count))
+        }
+
+        func terminate(_ terminal: Terminal) -> Bool {
+            let installed = state.withLock { state in
+                guard state.terminal == nil else { return false }
+                state.terminal = terminal
+                return true
+            }
+            if installed {
+                turn.shutdown()
+                bytes.shutdown()
+            }
+            return installed
+        }
+
+        private func terminalError(fallback: Async.Semaphore.Error) -> Error {
+            if let terminal = state.withLock({ $0.terminal }) {
+                return Self.error(terminal)
+            }
+            switch fallback {
+            case .cancelled: return .cancelled
+            case .shutdown: return .closed
+            case .timeout: return .cancelled
             }
         }
 
-        func release(_ chunk: borrowing Byte.Chunk) {
-            let charge = chunk.count == .zero ? Index<Byte>.Count.one : chunk.count
-            if capacity.count == .zero {
-                readerDemand = true
-            } else {
-                available = available.add.saturating(charge)
+        private static func error(
+            _ terminal: Terminal
+        ) -> Error {
+            switch terminal {
+            case .finished: return .finished
+            case .failed(let failure): return .failed(failure)
             }
-        }
-
-        func demand() {
-            if capacity.count == .zero { readerDemand = true }
         }
     }
 }
