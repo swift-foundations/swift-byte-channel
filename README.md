@@ -13,6 +13,6 @@ promise zero-copy splitting.
 
 This implementation is source-complete but **UNVERIFIED**. It depends on the
 unlanded typed-duplex producer at
-`https://github.com/swift-primitives/swift-async-primitives/commit/a3a4e92e3c08505c3d08e9e990d9e2f46a654fc0`
+`https://github.com/swift-primitives/swift-async-primitives/commit/dbfcf6a3c61e72fe98580a7ef1f5384c59898cc4`
 and the unlanded owned-linear-split producer at
-`https://github.com/swift-primitives/swift-buffer-linear-primitives/commit/b24e3e75382fafa2b002d4f9fb9267640fe6e36c`.
+`https://github.com/swift-primitives/swift-buffer-linear-primitives/commit/3eead6eb2b440d417338929c60da94cc18fd3386`.
