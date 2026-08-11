@@ -1,0 +1,101 @@
+import Async_Channel_Primitives
+import Async_Semaphore_Primitives
+import Byte_Chunk
+import Buffer_Protocol_Primitives
+import Index_Primitives
+import Synchronization
+
+extension Byte.Channel {
+    /// Positive-capacity byte admission and terminal linearization.
+    final class Gate: Sendable {
+        enum Terminal: Sendable {
+            case finished
+            case failed(Failure)
+        }
+
+        struct State: Sendable {
+            var terminal: Terminal?
+        }
+
+        let capacity: Buffer.Capacity<Byte>
+        let turn: Async.Semaphore
+        let bytes: Async.Semaphore
+        let state: Mutex<State>
+
+        init(capacity: Buffer.Capacity<Byte>) {
+            precondition(capacity.count != .zero)
+            self.capacity = capacity
+            self.turn = Async.Semaphore(capacity: 1)
+            self.bytes = Async.Semaphore(capacity: Int(capacity.count))
+            self.state = Mutex(State(terminal: nil))
+        }
+
+        func reserve(_ count: Index<Byte>.Count) async throws(Error) -> Reservation {
+            precondition(count <= capacity.count, "chunk exceeds channel byte capacity")
+            do {
+                try await turn.wait()
+            } catch {
+                throw terminalError(fallback: error)
+            }
+
+            var acquired = 0
+            do {
+                while acquired < Int(count) {
+                    try await bytes.wait()
+                    acquired += 1
+                }
+            } catch {
+                while acquired > 0 {
+                    bytes.signal()
+                    acquired -= 1
+                }
+                turn.signal()
+                throw terminalError(fallback: error)
+            }
+
+            let terminal = state.withLock { $0.terminal }
+            turn.signal()
+            if let terminal {
+                while acquired > 0 {
+                    bytes.signal()
+                    acquired -= 1
+                }
+                throw Self.error(terminal)
+            }
+            return Reservation(semaphore: bytes, count: Int(count))
+        }
+
+        func terminate(_ terminal: Terminal) -> Bool {
+            let installed = state.withLock { state in
+                guard state.terminal == nil else { return false }
+                state.terminal = terminal
+                return true
+            }
+            if installed {
+                turn.shutdown()
+                bytes.shutdown()
+            }
+            return installed
+        }
+
+        private func terminalError(fallback: Async.Semaphore.Error) -> Error {
+            if let terminal = state.withLock({ $0.terminal }) {
+                return Self.error(terminal)
+            }
+            switch fallback {
+            case .cancelled: return .cancelled
+            case .shutdown: return .closed
+            case .timeout: return .cancelled
+            }
+        }
+
+        private static func error(
+            _ terminal: Terminal
+        ) -> Error {
+            switch terminal {
+            case .finished: return .finished
+            case .failed(let failure): return .failed(failure)
+            }
+        }
+    }
+}
