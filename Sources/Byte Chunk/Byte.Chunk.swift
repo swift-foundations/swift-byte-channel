@@ -22,7 +22,10 @@ extension Byte {
         }
 
         @usableFromInline
-        init(_ payload: consuming Buffer<Storage<Memory.Allocator<Memory.Heap>>.Contiguous<Byte>>.Linear) {
+        init(
+            _ payload:
+                consuming Buffer<Storage<Memory.Allocator<Memory.Heap>>.Contiguous<Byte>>.Linear
+        ) {
             self.payload = consume payload
         }
     }

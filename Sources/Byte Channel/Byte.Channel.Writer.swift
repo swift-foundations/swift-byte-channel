@@ -25,6 +25,7 @@ extension Byte.Channel.Writer {
             switch await sender.send(consume chunk) {
             case .sent:
                 return .sent
+
             case .rejected(let rejected, let error):
                 return .rejected(consume rejected, error)
             }
@@ -45,6 +46,7 @@ extension Byte.Channel.Writer {
     public func finish() {
         switch backend {
         case .rendezvous(let sender): sender.finish()
+
         case .bounded(let sender, let gate):
             if gate.terminate(.finished) { sender.finish() }
         }
@@ -54,6 +56,7 @@ extension Byte.Channel.Writer {
     public func fail(_ failure: consuming Failure) {
         switch backend {
         case .rendezvous(let sender): sender.fail(consume failure)
+
         case .bounded(let sender, let gate):
             if gate.terminate(.failed(failure)) { sender.fail(consume failure) }
         }

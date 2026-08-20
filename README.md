@@ -9,10 +9,50 @@ directional EOF/failure, and half-close behavior while adding byte-budget
 admission. It transports complete chunks only; it does not coalesce chunks or
 promise zero-copy splitting.
 
-## Status
+## Key Features
 
-This implementation is source-complete but **UNVERIFIED**. It depends on the
-unlanded typed-duplex producer at
-`https://github.com/swift-primitives/swift-async-primitives/commit/a3a4e92e3c08505c3d08e9e990d9e2f46a654fc0`
-and the unlanded owned-linear-split producer at
-`https://github.com/swift-primitives/swift-buffer-linear-primitives/commit/b24e3e75382fafa2b002d4f9fb9267640fe6e36c`.
+- Owned, move-only byte chunks with lifetime-bound input and output views.
+- Typed bidirectional channels with directional finish and failure.
+- Zero-capacity rendezvous and positive-capacity byte-budget admission.
+- Chunk-boundary preservation with optional single-chunk splitting.
+
+## Quick Start
+
+```swift
+import Byte_Channel
+
+var (left, right) = Byte.Channel<Never>.pair(
+    capacity: Buffer.Capacity<Byte>(.one)
+)
+left.writer.finish()
+_ = try await right.reader.receive()
+```
+
+## Architecture
+
+The `Byte Chunk` product owns contiguous initialized byte storage. The
+`Byte Channel` product composes those chunks with typed asynchronous endpoints
+and byte-capacity admission.
+
+## Installation
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/swift-foundations/swift-byte-channel.git",
+        branch: "main"
+    )
+],
+targets: [
+    .target(
+        name: "MyTarget",
+        dependencies: [
+            .product(name: "Byte Channel", package: "swift-byte-channel")
+        ]
+    )
+]
+```
+
+## License
+
+Licensed under the Apache License 2.0.

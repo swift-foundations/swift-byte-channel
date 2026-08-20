@@ -29,7 +29,8 @@ extension Byte.Channel {
 
 extension Byte.Channel.Reader {
     /// Receives exactly one producer chunk, without cross-chunk coalescing.
-    public mutating func receive() async throws(Byte.Channel<Failure>.Error) -> sending Byte.Chunk? {
+    public mutating func receive() async throws(Byte.Channel<Failure>.Error) -> sending Byte.Chunk?
+    {
         if var pending = consume remainder {
             let count = Int(pending.chunk.count)
             pending.reservation.release(count)
@@ -40,6 +41,7 @@ extension Byte.Channel.Reader {
         switch backend {
         case .rendezvous(let receiver):
             return try await receiver.receive()
+
         case .bounded(let receiver, _):
             guard var accepted = try await receiver.receive() else { return nil }
             let chunk = accepted.chunk.take()
@@ -63,9 +65,13 @@ extension Byte.Channel.Reader {
         case .rendezvous(let receiver):
             guard let chunk = try await receiver.receive() else { return nil }
             return splitZero(consume chunk, maximum: maximum)
+
         case .bounded(let receiver, _):
             guard let accepted = try await receiver.receive() else { return nil }
-            let pending = Pending(chunk: accepted.chunk.take(), reservation: consume accepted.reservation)
+            let pending = Pending(
+                chunk: accepted.chunk.take(),
+                reservation: consume accepted.reservation
+            )
             return split(consume pending, maximum: maximum)
         }
     }
@@ -98,6 +104,7 @@ extension Byte.Channel.Reader {
     public func finish() {
         switch backend {
         case .rendezvous(let receiver): receiver.finish()
+
         case .bounded(let receiver, let gate):
             if gate.terminate(.finished) { receiver.finish() }
         }
@@ -107,6 +114,7 @@ extension Byte.Channel.Reader {
     public func fail(_ failure: consuming Failure) {
         switch backend {
         case .rendezvous(let receiver): receiver.fail(consume failure)
+
         case .bounded(let receiver, let gate):
             if gate.terminate(.failed(failure)) { receiver.fail(consume failure) }
         }

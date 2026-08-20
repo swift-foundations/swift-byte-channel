@@ -2,13 +2,13 @@ import Byte_Channel
 import Testing
 
 @Suite("Byte.Channel")
-struct ByteChannelTests {
+struct `Byte Channel Tests` {
     @Suite struct Unit {}
-    @Suite struct EdgeCase {}
+    @Suite struct `Edge Case` {}
     @Suite struct Integration {}
 }
 
-extension ByteChannelTests.Unit {
+extension `Byte Channel Tests`.Unit {
     @Test("Chunk input is move-only and its output ledger determines the finished chunk")
     func `chunk input ownership and ledger are source-visible`() async {
         // Static source test: `consume` prevents a second use of `input`; the
@@ -42,7 +42,7 @@ extension ByteChannelTests.Unit {
     }
 }
 
-extension ByteChannelTests.EdgeCase {
+extension `Byte Channel Tests`.`Edge Case` {
     @Test("Pair endpoints expose the exact canonical byte capacity")
     func `byte budget edge conditions are source-visible`() async {
         let zero = Buffer.Capacity<Byte>(.zero)
@@ -69,7 +69,7 @@ extension ByteChannelTests.EdgeCase {
     }
 }
 
-extension ByteChannelTests.Integration {
+extension `Byte Channel Tests`.Integration {
     @Test("FIFO, typed EOF and failure, half-close, and shutdown are delegated to the duplex")
     func `duplex terminal behavior remains typed`() async {}
 }

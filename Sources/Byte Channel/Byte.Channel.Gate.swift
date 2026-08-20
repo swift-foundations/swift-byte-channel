@@ -1,7 +1,7 @@
 import Async_Channel_Primitives
 import Async_Semaphore_Primitives
-import Byte_Chunk
 import Buffer_Protocol_Primitives
+import Byte_Chunk
 import Index_Primitives
 import Synchronization
 
@@ -78,7 +78,9 @@ extension Byte.Channel {
             return installed
         }
 
-        private func terminalError(fallback: Async.Semaphore.Error) -> Error {
+        private func terminalError(
+            fallback: Async.Semaphore.Error
+        ) -> Byte.Channel<Failure>.Error {
             if let terminal = state.withLock({ $0.terminal }) {
                 return Self.error(terminal)
             }
@@ -91,7 +93,7 @@ extension Byte.Channel {
 
         private static func error(
             _ terminal: Terminal
-        ) -> Error {
+        ) -> Byte.Channel<Failure>.Error {
             switch terminal {
             case .finished: return .finished
             case .failed(let failure): return .failed(failure)
