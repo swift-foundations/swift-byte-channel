@@ -25,6 +25,10 @@ extension Byte.Chunk.Input {
         _modify {
             yield &payload.outputSpan
         }
+        @_lifetime(borrow self)
+        _read {
+            yield payload.outputSpan
+        }
     }
 
     /// Finalizes the committed output frontier as an owned byte chunk.
